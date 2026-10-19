@@ -29,6 +29,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include <stdbool.h>
+#include "../../CMSIS-DSP/Include/arm_math.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,6 +41,12 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+#define SAMPLE_BUF_SIZE   1024
+#define WWVB_CARRIER_FREQ 60000
+#define ADC_SAMPLE_RATE   480000
+#define LO_ARR_SIZE       (ADC_SAMPLE_RATE/WWVB_CARRIER_FREQ)
+#define SIG_MIDPT_NOM     2048
 
 /* USER CODE END PD */
 
@@ -49,13 +58,25 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+uint16_t buffer[2*SAMPLE_BUF_SIZE];
+uint16_t* wr_buffer;
+uint16_t* rd_buffer;
+bool buffer_rdy = false;
+int32_t signal_avg = 0;
+int32_t signal_avg_acc = 0;
+int32_t lo_i[] = {0, 1, 0, -1, 0, 1, 0, -1};
+int32_t lo_q[] = {1, 0, -1, 0, 1, 0, -1, 0};
+int lo_ind = 0;
+int32_t mixer_i[SAMPLE_BUF_SIZE];
+int32_t mixer_q[SAMPLE_BUF_SIZE];
+int sample_ind = 0;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MPU_Config(void);
-/* USER CODE BEGIN PFP */
+/* USER CODE BEGIN PFP *
 
 /* USER CODE END PFP */
 
@@ -103,6 +124,17 @@ int main(void)
   MX_RTC_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+  
+  HAL_ADC_Stop(&hadc1);
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+
+  HAL_Delay(1);
+
+  wr_buffer = buffer;
+  rd_buffer = buffer + SAMPLE_BUF_SIZE;
+  HAL_ADC_Start_DMA(&hadc1, wr_buffer, SAMPLE_BUF_SIZE);
+
+  HAL_TIM_Base_Start(&htim3);
 
   /* USER CODE END 2 */
 
@@ -113,6 +145,22 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    if (buffer_rdy) {
+      signal_avg_acc = 0;
+      for (int i = 0; i < SAMPLE_BUF_SIZE; i++) {
+        int32_t sample = rd_buffer[i] - SIG_MIDPT_NOM;
+        signal_avg_acc += sample;
+        sample -= signal_avg;
+
+        mixer_i[i] = lo_i[lo_ind] * sample;
+        mixer_q[i] = lo_q[lo_ind] * sample;
+        lo_ind++;
+        if (lo_ind >= LO_ARR_SIZE) {
+          lo_ind = 0;
+        }
+      }
+      signal_avg = (int32_t)((1.0*signal_avg_acc / SAMPLE_BUF_SIZE) + 0.5);
+    }
   }
   /* USER CODE END 3 */
 }
@@ -175,6 +223,17 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+/**
+ * Definition of ADC Conversion Complete callback
+ */
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+  uint16_t* temp = rd_buffer;
+  rd_buffer = wr_buffer;
+  wr_buffer = rd_buffer;
+  buffer_rdy = true;
+  HAL_ADC_Start_DMA(&hadc1, wr_buffer, SAMPLE_BUF_SIZE);
+}
 
 /* USER CODE END 4 */
 

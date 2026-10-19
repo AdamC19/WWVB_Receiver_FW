@@ -31,6 +31,21 @@ OPT = -Og
 # Build path
 BUILD_DIR = build
 
+CMSIS_ROOT = .
+
+# Path to CMSIS_5
+CMSIS_6 := $(CMSIS_ROOT)/CMSIS_6
+
+# Path to CMSIS_DSP
+CMSIS_DSP := $(CMSIS_ROOT)/CMSIS-DSP
+
+# Path to CMSIS Core includes for Cortex-M
+# For low end Cortex-A, use Core_A
+# For high end Cortex-A (aarch64), don't use CMSIS 
+# Core Includes (Refer to the CMSIS-DSP README to 
+# know how to build in that case)
+CMSIS_CORE_INCLUDES := $(CMSIS_6)/CMSIS/Core/Include 
+
 ######################################
 # source
 ######################################
@@ -69,8 +84,7 @@ Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal_tim.c \
 Drivers/STM32H5xx_HAL_Driver/Src/stm32h5xx_hal_tim_ex.c \
 Core/Src/system_stm32h5xx.c \
 Core/Src/sysmem.c \
-Core/Src/syscalls.c  
-
+Core/Src/syscalls.c
 # ASM sources
 ASM_SOURCES =  \
 startup_stm32h562xx.s
@@ -136,6 +150,12 @@ C_INCLUDES =  \
 -IDrivers/CMSIS/Device/ST/STM32H5xx/Include \
 -IDrivers/CMSIS/Include
 
+
+# CMSIS and DSP Includes
+DSP_INCLUDES := $(CMSIS_DSP)/Include \
+  $(CMSIS_DSP)/PrivateInclude 
+
+# Compilation flags for include folders00
 
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
